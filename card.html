@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>數位名片產生器 | 三種版型全功能整合版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600;14..32,700;14..32,800&family=Noto+Sans+TC:wght@300;400;500;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0" />
+    <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body { background: #f1f5f9; font-family: 'Inter', 'Noto Sans TC', sans-serif; }
+        .card-editor-tab { transition: all 0.2s ease; cursor: pointer; }
+        .card-editor-tab.active { background: white; color: #2563eb; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .phone-mock { border: 10px solid #1e293b; border-radius: 2.5rem; background: #f8fafc; overflow: hidden; box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25); }
+        .gradient-bg { background: linear-gradient(135deg, #57142b, #46250c); }
+        .toast-message { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 24px; border-radius: 50px; font-size: 14px; font-weight: 500; z-index: 9999; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2); opacity: 0; transition: opacity 0.2s; pointer-events: none; white-space: nowrap; }
+        .toast-message.show { opacity: 1; }
+        .loading-spinner { width: 32px; height: 32px; border: 3px solid #e2e8f0; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .hidden { display: none !important; }
+        .btn-primary { background: #2563eb; color: white; padding: 14px 20px; border-radius: 16px; font-weight: 600; text-align: center; cursor: pointer; transition: 0.2s; border: none; width: 100%; font-size: 15px; }
+        .btn-primary:active { transform: scale(0.97); background: #1d4ed8; }
+        .btn-secondary { background: #f1f5f9; color: #334155; padding: 14px 20px; border-radius: 16px; font-weight: 600; text-align: center; cursor: pointer; transition: 0.2s; border: 1px solid #e2e8f0; width: 100%; }
+        .custom-input { width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 16px; font-size: 14px; outline: none; transition: 0.2s; background: #f8fafc; }
+        .custom-input:focus { border-color: #2563eb; background: white; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+        .textarea-block { width: 100%; padding: 12px 16px; border: 1px solid #e2e8f0; border-radius: 16px; font-size: 14px; outline: none; resize: vertical; background: #f8fafc; }
+        .drag-area { transition: 0.2s; cursor: pointer; }
+        .drag-area:hover { background: #f1f5f9; }
+        .input-label { display: block; font-size: 13px; font-weight: 600; color: #64748b; margin-bottom: 6px; margin-left: 4px; }
+    </style>
+</head>
+<body class="bg-slate-100">
+
+<div id="toast" class="toast-message"></div>
+
+<div class="max-w-md mx-auto bg-white min-h-screen relative shadow-2xl overflow-hidden flex flex-col">
+    
+    <div class="fixed top-0 left-0 right-0 max-w-md mx-auto bg-white/90 backdrop-blur-md z-30 px-5 py-3 flex justify-between items-center border-b border-slate-200">
+        <div class="flex items-center gap-2">
+            <span class="material-symbols-outlined text-blue-600 text-2xl">contact_mail</span>
+            <span class="font-extrabold text-slate-800 text-lg">名片管理</span>
+        </div>
+        <div id="userArea" class="flex items-center gap-2">
+            <img id="userAvatar" class="w-8 h-8 rounded-full object-cover border border-slate-200 hidden">
+            <button id="roleSwitchBtn" onclick="window.location.href='index.html'" class="hidden w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center active:scale-95 transition">🔄</button>
+        </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto pt-16 pb-28 px-4">
+        <div id="loadingView" class="flex flex-col items-center justify-center py-20">
+            <div class="loading-spinner"></div>
+            <p class="text-slate-500 text-sm mt-2">系統初始化...</p>
+        </div>
+
+        <div id="listView" class="hidden">
+            <div class="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 text-center mb-6">
+                <div class="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <span class="material-symbols-outlined text-blue-600">document_scanner</span>
+                </div>
+                <h3 class="font-bold text-slate-800">AI 智慧名片辨識</h3>
+                <p class="text-xs text-slate-500 mt-1 mb-4">拍照或上傳名片，自動擷取資訊</p>
+                <div class="flex gap-3">
+                    <button onclick="window.openCamera()" class="flex-1 btn-primary text-sm py-3">📷 拍照</button>
+                    <button onclick="window.openGallery()" class="flex-1 btn-secondary text-sm py-3">🖼️ 相簿</button>
+                </div>
+                <input type="file" id="cameraInput" accept="image/*" capture="environment" class="hidden" onchange="window.handleCameraInput(event)">
+                <input type="file" id="galleryInput" accept="image/*" class="hidden" onchange="window.handleGalleryInput(event)">
+                <button onclick="window.batchRegenerate()" id="batchRegenBtn" class="text-xs text-slate-400 mt-4 flex items-center justify-center gap-1 mx-auto hover:text-blue-600 transition">🔄 批次修復名片按鈕邏輯</button>
+            </div>
+
+            <div class="flex gap-2 mb-4">
+                <div class="relative flex-1">
+                    <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-lg">search</span>
+                    <input type="text" id="searchInput" oninput="window.filterCards()" placeholder="搜尋姓名或公司..." class="custom-input pl-10">
+                </div>
+                <button onclick="window.loadCards()" class="w-12 h-12 bg-white rounded-xl shadow-sm flex items-center justify-center text-slate-500 active:scale-95">🔄</button>
+            </div>
+
+            <div id="cardListContainer" class="space-y-3"></div>
+            <div id="loadMoreBox" class="text-center py-4 hidden">
+                <button onclick="window.loadMoreCards()" class="text-slate-500 text-sm bg-white px-6 py-2 rounded-full shadow-sm">顯示更多</button>
+            </div>
+        </div>
+
+        <div id="processView" class="hidden">
+            <button onclick="window.closeProcessView()" class="flex items-center gap-1 text-slate-600 mb-4 text-sm">← 返回</button>
+            <div class="bg-white rounded-2xl p-5 shadow-sm">
+                <img id="previewImage" class="w-full rounded-xl mb-4 max-h-48 object-contain bg-slate-50">
+                <div class="space-y-3">
+                    <input type="text" id="f_Name" placeholder="姓名" class="custom-input">
+                    <input type="text" id="f_CompanyName" placeholder="公司名稱" class="custom-input">
+                    <input type="tel" id="f_Mobile" placeholder="手機號碼" class="custom-input">
+                    <input type="text" id="f_Title" placeholder="職稱" class="custom-input">
+                    <textarea id="f_Slogan" rows="2" placeholder="品牌標語 / 服務項目" class="textarea-block"></textarea>
+                    <textarea id="f_Notes" rows="2" placeholder="內部備註 (管理員可見)" class="textarea-block"></textarea>
+                    <button onclick="window.saveCard()" id="saveCardBtn" class="btn-primary">💾 儲存名片並建檔</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="adminNav" class="fixed bottom-0 max-w-md mx-auto w-full bg-slate-900 text-white flex justify-around py-2 rounded-t-2xl hidden z-30">
+        <button onclick="window.location.href='index.html?view=admin-activities'" class="admin-nav-btn flex flex-col items-center text-[10px] gap-1"><span class="material-symbols-outlined text-[20px]">fact_check</span>核銷</button>
+        <button onclick="window.location.href='active.html'" class="admin-nav-btn flex flex-col items-center text-[10px] gap-1"><span class="material-symbols-outlined text-[20px]">add_circle</span>建立</button>
+        <button onclick="window.location.href='index.html?view=admin-crm'" class="admin-nav-btn flex flex-col items-center text-[10px] gap-1"><span class="material-symbols-outlined text-[20px]">groups</span>CRM</button>
+        <button onclick="window.location.href='fate.html'" class="admin-nav-btn flex flex-col items-center text-[10px] gap-1"><span class="material-symbols-outlined text-[20px]">psychology</span>配對</button>
+        <button onclick="window.location.href='card.html'" class="admin-nav-btn flex flex-col items-center text-[10px] gap-1 text-green-400"><span class="material-symbols-outlined text-[20px]">recent_patient</span>名片</button>
+        <button onclick="window.location.href='index.html?view=admin-settings'" class="admin-nav-btn flex flex-col items-center text-[10px] gap-1"><span class="material-symbols-outlined text-[20px]">settings</span>參數</button>
+    </div>
+    <div id="userNav" class="fixed bottom-0 max-w-md mx-auto w-full bg-white border-t flex justify-around py-2 hidden z-30">
+        <button onclick="window.location.href='index.html?view=user-activities'" class="nav-btn flex flex-col items-center text-[10px] gap-1 text-blue-600"><span class="material-symbols-outlined text-[20px]">explore</span>探索</button>
+        <button onclick="window.location.href='fate.html'" class="nav-btn flex flex-col items-center text-[10px] gap-1"><span class="material-symbols-outlined text-[20px]">psychology</span>配對</button>
+        <button onclick="window.location.href='index.html?view=user-history'" class="nav-btn flex flex-col items-center text-[10px] gap-1"><span class="material-symbols-outlined text-[20px]">receipt_long</span>紀錄</button>
+        <button onclick="window.location.href='index.html?view=user-profile'" class="nav-btn flex flex-col items-center text-[10px] gap-1"><span class="material-symbols-outlined text-[20px]">person</span>設定</button>
+    </div>
+</div>
+
+<!-- Card Detail Modal -->
+<div id="cardDetailModal" class="hidden fixed inset-0 bg-white z-[100] max-w-md mx-auto flex flex-col overflow-hidden shadow-2xl">
+    <div class="absolute top-4 right-4 flex gap-2 z-10">
+        <button onclick="window.openEditModal()" class="w-10 h-10 bg-white/90 rounded-full flex items-center justify-center shadow-md active:scale-90 transition">✏️</button>
+        <button onclick="window.closeDetail()" class="w-10 h-10 bg-black/50 rounded-full flex items-center justify-center text-white active:scale-90 transition">✕</button>
+    </div>
+    <div class="flex-1 overflow-auto pb-24">
+        <div class="w-full aspect-[4/3] bg-slate-100 relative">
+            <img id="detailImage" class="w-full h-full object-cover">
+            <div id="detailNoImage" class="absolute inset-0 flex items-center justify-center text-slate-300">📷 無名片圖檔</div>
+        </div>
+        <div class="p-6">
+            <h2 id="detailName" class="text-2xl font-extrabold text-slate-800"></h2>
+            <p id="detailTitle" class="text-slate-500 font-medium mt-1"></p>
+            <div class="mt-6 space-y-4 border-y border-slate-100 py-6">
+                <div class="flex gap-4 items-start"><span class="material-symbols-outlined text-slate-300">business</span><span id="detailCompany" class="text-slate-700"></span></div>
+                <div class="flex gap-4 items-start"><span class="material-symbols-outlined text-slate-300">phone</span><a id="detailMobile" class="text-blue-600 font-bold tracking-tight"></a></div>
+                <div class="flex gap-4 items-start"><span class="material-symbols-outlined text-slate-300">email</span><a id="detailEmail" class="text-blue-600"></a></div>
+                <div class="flex gap-4 items-start"><span class="material-symbols-outlined text-slate-300">location_on</span><span id="detailAddress" class="text-slate-600 text-sm"></span></div>
+            </div>
+            <div id="detailNotes" class="mt-6 text-slate-500 text-sm whitespace-pre-wrap leading-relaxed"></div>
+        </div>
+    </div>
+    <div class="absolute bottom-0 w-full bg-white p-4 border-t border-slate-100 flex gap-3 z-30">
+        <button onclick="window.shareClaimLink()" id="shareClaimBtn" class="flex-1 btn-secondary py-3 text-sm hidden">邀請認領</button>
+        <button onclick="window.initEcardModal()" class="flex-1 btn-primary py-3 text-sm bg-green-500 hover:bg-green-600 shadow-lg shadow-green-500/20">✨ 產生數位名片</button>
+    </div>
+</div>
+
+<!-- Edit Card Modal (完整恢復截圖中的 14 個欄位) -->
+<div id="cardEditModal" class="hidden fixed inset-0 bg-white z-[150] max-w-md mx-auto flex flex-col overflow-hidden">
+    <div class="bg-white px-5 py-4 border-b border-slate-100 flex justify-between items-center sticky top-0 z-20">
+        <h3 class="font-bold text-lg text-slate-800">編輯名片資料</h3>
+        <button onclick="window.closeEditModal()" class="w-9 h-9 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 active:scale-90 transition">✕</button>
+    </div>
+    <div class="flex-1 overflow-auto p-5 space-y-5 pb-32">
+        <div class="grid grid-cols-2 gap-4">
+            <div><label class="input-label">姓名</label><input type="text" id="edit_Name" class="custom-input"></div>
+            <div><label class="input-label">英文名</label><input type="text" id="edit_EnglishName" class="custom-input"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div><label class="input-label">職稱</label><input type="text" id="edit_Title" class="custom-input"></div>
+            <div><label class="input-label">部門</label><input type="text" id="edit_Department" class="custom-input"></div>
+        </div>
+        <div><label class="input-label">公司名稱</label><input type="text" id="edit_CompanyName" class="custom-input"></div>
+        <div class="grid grid-cols-2 gap-4">
+            <div><label class="input-label">統一編號</label><input type="text" id="edit_TaxID" class="custom-input"></div>
+            <div><label class="input-label">手機號碼</label><input type="tel" id="edit_Mobile" class="custom-input"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div><label class="input-label">公司電話</label><input type="tel" id="edit_Tel" class="custom-input"></div>
+            <div><label class="input-label">分機</label><input type="text" id="edit_Ext" class="custom-input"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div><label class="input-label">電子信箱</label><input type="email" id="edit_Email" class="custom-input"></div>
+            <div><label class="input-label">傳真</label><input type="text" id="edit_Fax" class="custom-input"></div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+            <div><label class="input-label">生日 (觸發命理)</label><input type="date" id="edit_Birthday" class="custom-input !text-slate-500"></div>
+            <div><label class="input-label">社群帳號</label><input type="text" id="edit_SocialMedia" class="custom-input" placeholder="LINE ID / IG"></div>
+        </div>
+        <div><label class="input-label">公司地址</label><input type="text" id="edit_Address" class="custom-input"></div>
+        <div><label class="input-label">品牌標語 / 服務項目</label><textarea id="edit_Slogan" rows="2" class="textarea-block"></textarea></div>
+        <div><label class="input-label">備註 (管理員用)</label><textarea id="edit_Notes" rows="2" class="textarea-block"></textarea></div>
+        <div class="flex justify-between items-center py-4 border-t border-slate-50">
+            <div>
+                <span class="text-sm font-bold text-slate-700">🔓 開放 AI 合作配對池</span>
+                <p class="text-[11px] text-slate-400 mt-0.5">允許他人透過需求搜尋到您的名片</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="edit_IsPublic" class="sr-only peer" checked>
+                <div class="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:bg-green-500 after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div>
+            </label>
+        </div>
+    </div>
+    <div class="absolute bottom-0 w-full bg-white p-4 border-t border-slate-100 z-30">
+        <button onclick="window.saveEdit()" id="saveEditBtn" class="btn-primary">儲存變更並更新資料庫</button>
+    </div>
+</div>
+
+<!-- E-Card Generator Modal -->
+<div id="ecardModal" class="hidden fixed inset-0 bg-white z-[200] max-w-md mx-auto flex flex-col overflow-hidden">
+    <div class="bg-white px-5 py-4 border-b border-slate-100 flex justify-between items-center sticky top-0 z-20">
+        <div class="flex items-center gap-3">
+            <button onclick="window.closeEcardModal()" class="w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center active:scale-90 transition">←</button>
+            <span class="font-bold text-slate-800">數位名片編輯器</span>
+        </div>
+        <button onclick="window.saveEcardConfig()" id="saveEcardConfigBtn" class="text-sm bg-blue-50 text-blue-600 px-4 py-2 rounded-full font-bold active:scale-95 transition">儲存草稿</button>
+    </div>
+    <div class="flex-1 overflow-auto p-5 pb-32">
+        <!-- 手機即時預覽 (整合 card-ecard.js 邏輯) -->
+        <div class="flex flex-col items-center mb-8 pb-6 border-b border-slate-50">
+            <div class="flex items-center gap-1.5 mb-3 text-slate-400"><span class="material-symbols-outlined text-[18px]">preview</span><span class="text-[12px] font-bold tracking-widest uppercase">Live Preview</span></div>
+            <div class="w-[280px] border-[6px] border-slate-800 rounded-[2.5rem] overflow-hidden shadow-2xl bg-white relative">
+                <div class="absolute top-0 left-1/2 -translate-x-1/2 w-24 h-5 bg-slate-800 rounded-b-xl z-30"></div>
+                <div id="mobilePreviewContainer" class="min-h-[380px] w-full relative z-10 bg-slate-50 pt-3"></div>
+            </div>
+        </div>
+
+        <div class="flex bg-slate-100 p-1.5 rounded-2xl mb-6">
+            <button onclick="window.switchTab('image')" class="tab-btn flex-1 py-2.5 text-[13px] font-bold rounded-xl card-editor-tab active" data-type="image">🖼️ 靜態圖</button>
+            <button onclick="window.switchTab('video')" class="tab-btn flex-1 py-2.5 text-[13px] font-bold rounded-xl card-editor-tab" data-type="video">🎬 動態片</button>
+            <button onclick="window.switchTab('v2')" class="tab-btn flex-1 py-2.5 text-[13px] font-bold rounded-xl card-editor-tab" data-type="v2">✨ 多連結</button>
+        </div>
+
+        <div class="space-y-5">
+            <div><label class="input-label">主標題 / 姓名</label><input type="text" id="ecard_Title" class="custom-input" oninput="window.updatePreview()"></div>
+            <div><label class="input-label">內容描述</label><textarea id="ecard_Desc" rows="3" class="textarea-block" oninput="window.updatePreview()"></textarea></div>
+        </div>
+
+        <!-- V1 版型專屬欄位 (靜態/影片) -->
+        <div id="v1Fields" class="mt-6 space-y-5">
+            <div id="videoUrlGroup" class="hidden">
+                <label class="input-label">影片網址 (Direct MP4)</label>
+                <div class="flex gap-2">
+                    <input type="url" id="ecard_VideoUrl" class="custom-input flex-1" placeholder="https://..." oninput="window.updatePreview()">
+                    <button onclick="window.openVoomModal()" class="shrink-0 px-3 bg-blue-50 text-blue-600 rounded-xl font-bold text-xs">VOOM</button>
+                </div>
+            </div>
+            <div>
+                <label class="input-label">封面/主圖網址</label>
+                <div onclick="document.getElementById('ecardFileInput').click()" class="relative drag-area w-full h-36 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center cursor-pointer overflow-hidden group">
+                    <img id="ecardV1Preview" src="" class="absolute inset-0 w-full h-full object-cover hidden">
+                    <div id="ecardV1Placeholder" class="flex flex-col items-center group-hover:scale-110 transition-transform">
+                        <span class="material-symbols-outlined text-3xl text-slate-300">add_photo_alternate</span>
+                        <p class="text-[11px] text-slate-400 mt-1 font-bold">點擊上傳或貼網址</p>
+                    </div>
+                </div>
+                <input type="text" id="ecard_ImgUrl" class="custom-input mt-3" oninput="window.updatePreview()">
+                <input type="file" id="ecardFileInput" accept="image/*" class="hidden" onchange="window.handleEcardImageInput(event)">
+            </div>
+            <div>
+                <label class="input-label">底圖連結 (點擊封面後的跳轉)</label>
+                <input type="url" id="ecard_ActionUrl" class="custom-input" oninput="window.updatePreview()">
+            </div>
+            <div>
+                <label class="input-label flex justify-between">按鈕配置 <span class="text-[11px] font-normal text-slate-400">最多 4 個</span></label>
+                <div id="buttonsContainer" class="space-y-3"></div>
+            </div>
+        </div>
+
+        <!-- V2 版型專屬欄位 (多連結) -->
+        <div id="v2Fields" class="hidden mt-6 space-y-5">
+            <div>
+                <label class="input-label">LOGO / 大頭貼</label>
+                <div class="flex gap-4 items-center">
+                    <div onclick="document.getElementById('ecardV2LogoInput').click()" class="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center cursor-pointer overflow-hidden border border-slate-100 relative shrink-0">
+                        <img id="v2LogoPreview" src="" class="absolute inset-0 w-full h-full object-cover hidden">
+                        <span id="v2LogoPlaceholder" class="material-symbols-outlined text-slate-300">add_a_photo</span>
+                    </div>
+                    <div class="flex-1">
+                        <input type="text" id="ecard_V2LogoUrl" class="custom-input" placeholder="圖片網址" oninput="window.updatePreview()">
+                        <input type="file" id="ecardV2LogoInput" accept="image/*" class="hidden" onchange="window.handleEcardLogoInput(event)">
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div><label class="input-label">漸層背景 (起)</label><input type="color" id="ecard_V2BgStart" class="w-full h-12 rounded-xl border-none cursor-pointer p-0" value="#57142b" oninput="window.updatePreview()"></div>
+                <div><label class="input-label">漸層背景 (迄)</label><input type="color" id="ecard_V2BgEnd" class="w-full h-12 rounded-xl border-none cursor-pointer p-0" value="#46250c" oninput="window.updatePreview()"></div>
+            </div>
+            <div>
+                <label class="input-label flex justify-between items-center">按鈕清單 <button onclick="window.addBar()" class="text-[11px] bg-slate-800 text-white px-3 py-1 rounded-full active:scale-95 transition">+ 新增</button></label>
+                <div id="barList" class="space-y-3 mt-2"></div>
+            </div>
+        </div>
+
+        <div class="mt-8 pt-6 border-t border-slate-100">
+            <label class="input-label">LINE 預覽文字</label>
+            <input type="text" id="ecard_AltText" class="custom-input mb-5" placeholder="您收到一張數位名片">
+            <button onclick="window.shareToLine()" id="shareLineBtn" class="btn-primary bg-[#06C755] hover:bg-[#05b34d] shadow-lg shadow-green-500/20">🚀 發送名片至 LINE</button>
+        </div>
+    </div>
+</div>
+
+<!-- 影片轉換 Modal -->
+<div id="voomModal" class="hidden fixed inset-0 bg-black/60 backdrop-blur-sm z-[300] flex items-end max-w-md mx-auto">
+    <div class="bg-white w-full rounded-t-[2.5rem] p-6 animate-slide-up">
+        <div class="flex justify-between items-center mb-4">
+            <h4 class="font-extrabold text-slate-800">LINE VOOM 影片解析</h4>
+            <button onclick="window.closeVoomModal()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500">✕</button>
+        </div>
+        <p class="text-xs text-slate-400 mb-4 font-medium">請貼上 LINE VOOM 的影片連結，系統將自動擷取原始 MP4 路徑。</p>
+        <input type="url" id="voomUrl" class="custom-input mb-4" placeholder="https://linevoom.line.me/...">
+        <button onclick="window.fetchVoomData()" id="fetchVoomBtn" class="btn-primary py-3 text-sm">開始解析影音網址</button>
+        <div id="voomResult" class="hidden mt-4 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+            <video id="voomPlayer" controls class="w-full rounded-xl aspect-video mb-3"></video>
+            <button onclick="window.applyVoom()" id="applyVoomBtn" class="w-full py-2 bg-blue-50 text-blue-600 rounded-xl text-xs font-bold">套用此影片與封面</button>
+        </div>
+    </div>
+</div>
+
+<!-- 圖片裁切 Modal -->
+<div id="cropModal" class="hidden fixed inset-0 bg-black z-[1000] flex flex-col max-w-md mx-auto">
+    <div class="flex justify-between items-center p-5 text-white border-b border-slate-900 bg-slate-900">
+        <button onclick="window.cancelCrop()" class="font-bold text-slate-400">取消</button>
+        <span class="font-extrabold tracking-widest uppercase text-[14px]">Crop Image</span>
+        <button onclick="window.confirmCrop()" class="px-5 py-2 bg-green-500 rounded-xl font-bold">完成</button>
+    </div>
+    <div class="flex-1 flex items-center justify-center bg-black">
+        <img id="cropImage" class="max-w-full max-h-full">
+    </div>
+</div>
+
+<script>
+    // ==========================================
+    // 1. 全域變數與初始化 (整合 card.js)
+    // ==========================================
+    const API_URL = "https://actmaster.fangwl591021.workers.dev";
+    const SVG_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='%23e2e8f0'/%3E%3Cpath d='M50 55c-11 0-20 9-20 20v5h40v-5c0-11-9-20-20-20zm0-25c-8.3 0-15 6.7-15 15s6.7 15 15 15 15-6.7 15-15-6.7-15-15-15z' fill='%2394a3b8'/%3E%3C/svg%3E";
+    const SVG_COVER = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='260' viewBox='0 0 400 260'%3E%3Crect width='400' height='260' fill='%23f1f5f9'/%3E%3Cpath d='M150 130l30-40 40 50 20-25 40 50H120z' fill='%23cbd5e1'/%3E%3Ccircle cx='160' cy='90' r='15' fill='%23cbd5e1'/%3E%3C/svg%3E";
+
+    let currentUser = null, isAdmin = false, currentCard = null;
+    let allCards = [], filteredCards = [], currentPageNum = 1;
+    let cropper = null, currentCropCallback = null, isProcessing = false;
+    let currentEcardType = 'image';
+    window.v2Bars = [];
+
+    // --- 輔助函式 ---
+    function showToast(msg, isError = false) {
+        const t = document.getElementById('toast');
+        if(!t) return;
+        t.textContent = msg;
+        t.style.background = isError ? '#ef4444' : '#1e293b';
+        t.classList.add('show');
+        setTimeout(() => t.classList.remove('show'), 3000);
+    }
+
+    window.callAPI = async (action, payload) => {
+        try {
+            const res = await fetch(API_URL, { 
+                method: 'POST', 
+                headers: { 'Content-Type': 'application/json' }, 
+                body: JSON.stringify({ action, payload }) 
+            });
+            const json = await res.json();
+            if (!json.success) throw new Error(json.error || "API Request Failed");
+            return json.data;
+        } catch (e) {
+            showToast("API 錯誤: " + e.message, true);
+            throw e;
+        }
+    };
+
+    window.formatPhone = (phone) => {
+        if (!phone) return '';
+        let s = String(phone).replace(/[^\d+]/g, '');
+        if (s.startsWith('+886')) s = '0' + s.slice(4);
+        else if (s.startsWith('886')) s = '0' + s.slice(3);
+        if (s.startsWith('9') && s.length === 9) s = '0' + s;
+        return s;
+    };
+
+    async function initLIFF() {
+        try {
+            await liff.init({ liffId: "2009367829-DLtYBDUm" });
+            if (!liff.isLoggedIn()) { liff.login({ redirectUri: window.location.href }); return; }
+            currentUser = await liff.getProfile();
+            const adminIds = ["Uf729764dbb5b652a5a90a467320bea29", "U58eb5c1a747450140ce1335af709ae55", "U8932b891ad24da512afb9c1a6f41567b"];
+            isAdmin = adminIds.includes(currentUser.userId);
+            
+            document.getElementById('userAvatar').src = currentUser.pictureUrl || SVG_AVATAR;
+            document.getElementById('userAvatar').classList.remove('hidden');
+            
+            if (isAdmin) {
+                document.getElementById('adminNav').classList.remove('hidden');
+                document.getElementById('roleSwitchBtn').classList.remove('hidden');
+            } else {
+                document.getElementById('userNav').classList.remove('hidden');
+            }
+            
+            await window.loadCards();
+            document.getElementById('loadingView').classList.add('hidden');
+            document.getElementById('listView').classList.remove('hidden');
+        } catch (e) {
+            alert("LIFF 初始化失敗: " + e.message);
+        }
+    }
+
+    // ==========================================
+    // 2. 名片清單與管理 (整合 card.js)
+    // ==========================================
+    window.loadCards = async () => {
+        const data = await window.callAPI('getCardContacts', {});
+        allCards = data.map(c => ({ ...c, rowId: String(c.rowId) }));
+        if(!isAdmin) {
+            allCards = allCards.filter(c => String(c['LINE ID']).trim() === currentUser.userId);
+        }
+        window.filterCards();
+    };
+
+    window.filterCards = () => {
+        const kw = document.getElementById('searchInput')?.value.toLowerCase() || '';
+        filteredCards = allCards.filter(c => 
+            (c['姓名'] || '').toLowerCase().includes(kw) || 
+            (c['公司名稱'] || '').toLowerCase().includes(kw)
+        );
+        currentPageNum = 1;
+        window.renderCards();
+    };
+
+    window.renderCards = () => {
+        const container = document.getElementById('cardListContainer');
+        if(!container) return;
+        const page = filteredCards.slice(0, currentPageNum * 12);
+        container.innerHTML = '';
+        if(page.length === 0){
+            container.innerHTML='<div class="text-center py-20 text-slate-300 font-bold">無符合的名片資料</div>';
+            return;
+        }
+        page.forEach(c => {
+            const div = document.createElement('div');
+            div.className = 'bg-white rounded-2xl p-4 flex gap-4 shadow-sm cursor-pointer border border-slate-100 active:scale-[0.98] transition';
+            div.onclick = () => window.openCardDetail(c);
+            let img = (c['名片圖檔'] && c['名片圖檔'].startsWith('http')) 
+                ? `<img src="${c['名片圖檔']}" class="w-full h-full object-cover">` 
+                : `<span class="material-symbols-outlined text-slate-200">contact_mail</span>`;
+            div.innerHTML = `
+                <div class="w-16 h-16 bg-slate-50 rounded-2xl flex items-center justify-center overflow-hidden shrink-0 border border-slate-50">${img}</div>
+                <div class="flex-1 overflow-hidden flex flex-col justify-center">
+                    <div class="font-extrabold text-slate-800 truncate">${c['姓名']||'未知'}</div>
+                    <div class="text-[11px] text-slate-400 font-bold truncate tracking-wider uppercase mt-0.5">${c['公司名稱']||'個人工作室'}</div>
+                </div>
+            `;
+            container.appendChild(div);
+        });
+        document.getElementById('loadMoreBox').classList.toggle('hidden', filteredCards.length <= currentPageNum * 12);
+    };
+
+    window.loadMoreCards = () => { currentPageNum++; window.renderCards(); };
+
+    window.openCardDetail = (card) => {
+        currentCard = card;
+        const setT = (id, val) => { const el = document.getElementById(id); if(el) el.innerText = val || ''; };
+        setT('detailName', card['姓名']);
+        setT('detailTitle', card['職稱']);
+        setT('detailCompany', card['公司名稱']);
+        
+        const mobile = window.formatPhone(card['手機號碼']);
+        const mobileEl = document.getElementById('detailMobile');
+        mobileEl.innerText = mobile || '未提供';
+        mobileEl.href = mobile ? `tel:${mobile}` : '#';
+        
+        const emailEl = document.getElementById('detailEmail');
+        emailEl.innerText = card['電子郵件'] || '未提供';
+        emailEl.href = card['電子郵件'] ? `mailto:${card['電子郵件']}` : '#';
+        
+        setT('detailAddress', card['公司地址']);
+        document.getElementById('detailNotes').innerText = (card['服務項目/品牌標語'] || '') + (card['建檔人/備註'] ? '\n\n📝 備註：' + card['建檔人/備註'] : '');
+        
+        const imgEl = document.getElementById('detailImage');
+        const noImg = document.getElementById('detailNoImage');
+        if(card['名片圖檔'] && card['名片圖檔'].startsWith('http')){
+            imgEl.src = card['名片圖檔'];
+            imgEl.classList.remove('hidden');
+            noImg.classList.add('hidden');
+        } else {
+            imgEl.classList.add('hidden');
+            noImg.classList.remove('hidden');
+        }
+        
+        // 如果此名片未綁定 LINE ID，顯示邀請認領按鈕
+        document.getElementById('shareClaimBtn').classList.toggle('hidden', !!card['LINE ID']);
+        document.getElementById('cardDetailModal').classList.remove('hidden');
+    };
+
+    window.closeDetail = () => document.getElementById('cardDetailModal').classList.add('hidden');
+
+    window.openEditModal = () => {
+        window.closeDetail();
+        const c = currentCard;
+        const setV = (id, val) => { const el = document.getElementById(id); if(el) el.value = val || ''; };
+        
+        setV('edit_Name', c['姓名']);
+        setV('edit_EnglishName', c['英文名/別名']);
+        setV('edit_Title', c['職稱']);
+        setV('edit_Department', c['部門']);
+        setV('edit_CompanyName', c['公司名稱']);
+        setV('edit_TaxID', c['統一編號']);
+        setV('edit_Mobile', window.formatPhone(c['手機號碼']));
+        setV('edit_Tel', c['公司電話']);
+        setV('edit_Ext', c['分機']);
+        setV('edit_Email', c['電子郵件']);
+        setV('edit_Fax', c['傳真']);
+        setV('edit_Birthday', c['生日']);
+        setV('edit_SocialMedia', c['社群帳號']);
+        setV('edit_Address', c['公司地址']);
+        setV('edit_Slogan', c['服務項目/品牌標語']);
+        setV('edit_Notes', c['建檔人/備註']);
+
+        let config = {};
+        if(c['自訂名片設定']) try{ config = JSON.parse(c['自訂名片設定']); }catch(e){}
+        document.getElementById('edit_IsPublic').checked = !config.isPrivate;
+        
+        document.getElementById('cardEditModal').classList.remove('hidden');
+    };
+
+    window.closeEditModal = () => document.getElementById('cardEditModal').classList.add('hidden');
+
+    window.saveEdit = async () => {
+        if(isProcessing) return;
+        isProcessing = true;
+        const btn = document.getElementById('saveEditBtn');
+        btn.innerText = "資料同步中...";
+        btn.disabled = true;
+
+        const getV = (id) => document.getElementById(id).value.trim();
+        const payload = {
+            rowId: currentCard.rowId,
+            Name: getV('edit_Name'),
+            EnglishName: getV('edit_EnglishName'),
+            Title: getV('edit_Title'),
+            Department: getV('edit_Department'),
+            CompanyName: getV('edit_CompanyName'),
+            TaxID: getV('edit_TaxID'),
+            Mobile: getV('edit_Mobile'),
+            Tel: getV('edit_Tel'),
+            Ext: getV('edit_Ext'),
+            Email: getV('edit_Email'),
+            Fax: getV('edit_Fax'),
+            Birthday: getV('edit_Birthday'),
+            SocialMedia: getV('edit_SocialMedia'),
+            Address: getV('edit_Address'),
+            Slogan: getV('edit_Slogan'),
+            Notes: getV('edit_Notes')
+        };
+
+        let config = {};
+        if(currentCard['自訂名片設定']) try{ config = JSON.parse(currentCard['自訂名片設定']); }catch(e){}
+        config.isPrivate = !document.getElementById('edit_IsPublic').checked;
+
+        try {
+            await window.callAPI('updateCard', payload);
+            await window.callAPI('updateECardConfig', { rowId: currentCard.rowId, config });
+            showToast("✅ 資料已同步更新");
+            window.closeEditModal();
+            await window.loadCards();
+            window.openCardDetail(allCards.find(c => c.rowId === currentCard.rowId));
+        } catch(e) {
+            showToast("儲存失敗", true);
+        } finally {
+            btn.innerText = "儲存變更並更新資料庫";
+            btn.disabled = false;
+            isProcessing = false;
+        }
+    };
+
+    // ==========================================
+    // 3. 數位名片編輯器邏輯 (整合 card-ecard.js)
+    // ==========================================
+    window.initEcardModal = function() {
+        window.closeDetail();
+        let saved = null;
+        if(currentCard['自訂名片設定']) try{ saved = JSON.parse(currentCard['自訂名片設定']); }catch(e){}
+        
+        currentEcardType = saved?.cardType || 'image';
+        document.getElementById('ecard_Title').value = saved?.title || currentCard['姓名'] || '';
+        document.getElementById('ecard_Desc').value = saved?.desc || currentCard['服務項目/品牌標語'] || '';
+        document.getElementById('ecard_AltText').value = saved?.altText || '您收到一張數位名片';
+        document.getElementById('ecard_ImgUrl').value = saved?.imgUrl || currentCard['名片圖檔'] || '';
+        document.getElementById('ecard_ActionUrl').value = saved?.imgActionUrl || `https://liff.line.me/2009367829-DLtYBDUm`;
+        document.getElementById('ecard_VideoUrl').value = saved?.videoUrl || '';
+        document.getElementById('ecard_V2LogoUrl').value = saved?.v2LogoUrl || '';
+        
+        if(saved?.v2BgStart) document.getElementById('ecard_V2BgStart').value = saved.v2BgStart;
+        if(saved?.v2BgEnd) document.getElementById('ecard_V2BgEnd').value = saved.v2BgEnd;
+        
+        window.v2Bars = saved?.v2Bars || [];
+        window.renderBars();
+
+        let btns = saved?.buttons || [];
+        if(btns.length === 0){
+            if(currentCard['手機號碼']) btns.push({l:'撥打電話', u:`tel:${window.formatPhone(currentCard['手機號碼'])}`, c:'#06C755'});
+            if(currentCard['電子郵件']) btns.push({l:'發送信箱', u:`mailto:${currentCard['電子郵件']}`, c:'#06C755'});
+        }
+        
+        const btnContainer = document.getElementById('buttonsContainer');
+        btnContainer.innerHTML = '';
+        for(let i=0; i<4; i++){
+            const b = btns[i] || {l:'', u:'', c:'#06C755'};
+            btnContainer.innerHTML += `
+                <div class="flex gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-100 shadow-sm">
+                    <input type="color" class="w-8 h-8 rounded border-none cursor-pointer p-0" value="${b.c}" oninput="window.updatePreview()" data-idx="${i}" data-f="c">
+                    <input type="text" class="custom-input !h-9 !px-2 flex-1 !bg-white" placeholder="按鈕文字" value="${b.l}" oninput="window.updatePreview()" data-idx="${i}" data-f="l">
+                    <input type="url" class="custom-input !h-9 !px-2 flex-1 !bg-white !text-[11px]" placeholder="連結網址" value="${b.u}" oninput="window.updatePreview()" data-idx="${i}" data-f="u">
+                </div>`;
+        }
+        
+        window.switchTab(currentEcardType);
+        document.getElementById('ecardModal').classList.remove('hidden');
+        window.updatePreview();
+    };
+
+    window.switchTab = (type) => {
+        currentEcardType = type;
+        document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.type === type));
+        document.getElementById('v1Fields').classList.toggle('hidden', type === 'v2');
+        document.getElementById('v2Fields').classList.toggle('hidden', type !== 'v2');
+        document.getElementById('videoUrlGroup').classList.toggle('hidden', type !== 'video');
+        window.updatePreview();
+    };
+
+    window.updatePreview = () => {
+        const container = document.getElementById('mobilePreviewContainer');
+        const title = document.getElementById('ecard_Title').value || '數位商務名片';
+        const desc = document.getElementById('ecard_Desc').value || '歡迎與我聯繫';
+        let html = '';
+
+        if(currentEcardType === 'v2'){
+            const logo = document.getElementById('ecard_V2LogoUrl').value || SVG_AVATAR;
+            const bgS = document.getElementById('ecard_V2BgStart').value;
+            const bgE = document.getElementById('ecard_V2BgEnd').value;
+            const bars = window.v2Bars.filter(b => b.text).map(b => `
+                <div class="bg-white/95 text-slate-800 py-3 rounded-full text-[13px] font-extrabold mb-3 shadow-md text-center">${b.text}</div>
+            `).join('');
+            
+            html = `
+                <div class="p-6 text-white text-center min-h-[400px] flex flex-col items-center" style="background: linear-gradient(135deg, ${bgS}, ${bgE})">
+                    <img src="${logo}" class="w-20 h-20 rounded-full mx-auto object-cover border-4 border-white/20 mb-4 shadow-xl" onerror="this.src='${SVG_AVATAR}'">
+                    <div class="font-black text-xl mb-1">${title}</div>
+                    <div class="text-[11px] opacity-80 leading-relaxed mb-6">${desc}</div>
+                    <div class="w-full px-4">${bars}</div>
+                </div>`;
+            
+            // 更新同步編輯器內的 Logo 預覽
+            const lp = document.getElementById('v2LogoPreview');
+            if(lp) { lp.src = logo; lp.classList.remove('hidden'); document.getElementById('v2LogoPlaceholder').classList.add('hidden'); }
+        } else {
+            const img = document.getElementById('ecard_ImgUrl').value || SVG_COVER;
+            let btns = '';
+            document.querySelectorAll('[data-f="l"]').forEach((el, i) => {
+                const label = el.value, color = document.querySelectorAll('[data-f="c"]')[i].value;
+                if(label) btns += `<div class="py-2.5 rounded-xl text-white text-center text-[13px] font-extrabold mb-2 shadow-sm" style="background:${color}">${label}</div>`;
+            });
+
+            let hero = `<img src="${img}" class="w-full h-full object-cover" onerror="this.src='${SVG_COVER}'">`;
+            if(currentEcardType === 'video') hero = `<div class="relative w-full h-full bg-black flex items-center justify-center">${hero}<span class="material-symbols-outlined text-white text-5xl absolute z-10">play_circle</span><div class="absolute inset-0 bg-black/30"></div></div>`;
+
+            html = `
+                <div class="bg-white overflow-hidden pb-4">
+                    <div class="aspect-[20/13] relative bg-slate-100">${hero}</div>
+                    <div class="p-5 text-center">
+                        <div class="font-black text-lg text-slate-800">${title}</div>
+                        <div class="text-[11px] text-slate-400 font-bold mt-1.5 leading-relaxed">${desc}</div>
+                    </div>
+                    <div class="px-5">${btns}</div>
+                </div>`;
+            
+            const v1p = document.getElementById('ecardV1Preview');
+            if(v1p) { v1p.src = img; v1p.classList.remove('hidden'); document.getElementById('ecardV1Placeholder').classList.add('hidden'); }
+        }
+        container.innerHTML = html;
+    };
+
+    window.renderBars = () => {
+        const container = document.getElementById('barList');
+        container.innerHTML = window.v2Bars.map((b, i) => `
+            <div class="flex gap-2 items-center bg-slate-50 p-2 rounded-xl border border-slate-100">
+                <input type="text" class="custom-input !h-9 !px-2 flex-1 !bg-white" value="${b.text}" placeholder="按鈕文字" oninput="window.v2Bars[${i}].text=this.value; window.updatePreview()">
+                <input type="url" class="custom-input !h-9 !px-2 flex-1 !bg-white !text-[11px]" value="${b.url}" placeholder="網址" oninput="window.v2Bars[${i}].url=this.value; window.updatePreview()">
+                <button onclick="window.v2Bars.splice(${i},1); window.renderBars(); window.updatePreview()" class="w-9 h-9 bg-red-50 text-red-400 rounded-lg">🗑️</button>
+            </div>
+        `).join('');
+    };
+
+    window.addBar = () => { window.v2Bars.push({ text: '新連結', url: 'https://' }); window.renderBars(); };
+    window.closeEcardModal = () => document.getElementById('ecardModal').classList.add('hidden');
+
+    window.saveEcardConfig = async () => {
+        isProcessing = true;
+        const btn = document.getElementById('saveEcardConfigBtn');
+        const ori = btn.innerText; btn.innerText = "...";
+        
+        const config = {
+            cardType: currentEcardType,
+            title: document.getElementById('ecard_Title').value,
+            desc: document.getElementById('ecard_Desc').value,
+            altText: document.getElementById('ecard_AltText').value,
+            imgUrl: document.getElementById('ecard_ImgUrl').value,
+            videoUrl: document.getElementById('ecard_VideoUrl').value,
+            imgActionUrl: document.getElementById('ecard_ActionUrl').value,
+            v2LogoUrl: document.getElementById('ecard_V2LogoUrl').value,
+            v2BgStart: document.getElementById('ecard_V2BgStart').value,
+            v2BgEnd: document.getElementById('ecard_V2BgEnd').value,
+            v2Bars: window.v2Bars,
+            buttons: []
+        };
+        
+        document.querySelectorAll('[data-f="l"]').forEach((el, i) => {
+            const l = el.value, u = document.querySelectorAll('[data-f="u"]')[i].value, c = document.querySelectorAll('[data-f="c"]')[i].value;
+            if(l && u) config.buttons.push({ l, u, c });
+        });
+
+        try {
+            await window.callAPI('updateECardConfig', { rowId: currentCard.rowId, config });
+            showToast("✅ 名單版型草稿已儲存");
+            currentCard['自訂名片設定'] = JSON.stringify(config);
+        } catch(e) {
+            showToast("儲存失敗", true);
+        } finally {
+            btn.innerText = ori;
+            isProcessing = false;
+        }
+    };
+
+    // --- LINE 轉發功能 ---
+    window.shareToLine = async () => {
+        await window.saveEcardConfig();
+        const config = JSON.parse(currentCard['自訂名片設定']);
+        const badgeUrl = `https://liff.line.me/2009367829-DLtYBDUm?shareCardId=${currentCard.rowId}`;
+
+        // 動態生成 Flex Message 物件
+        let flex = {
+            "type": "bubble",
+            "size": "mega",
+            "header": {
+                "type": "box", "layout": "horizontal", "justifyContent": "flex-end", "paddingAll": "8px",
+                "contents": [{
+                    "type": "box", "layout": "vertical", "justifyContent": "center", "backgroundColor": "#FF0000", "width": "65px", "height": "25px", "cornerRadius": "25px",
+                    "contents": [{ "type": "text", "text": "分享", "weight": "bold", "align": "center", "color": "#FFFFFF", "size": "xs" }],
+                    "action": { "type": "uri", "uri": badgeUrl }
+                }]
+            }
+        };
+
+        if(config.cardType === 'v2'){
+            flex.body = {
+                "type": "box", "layout": "vertical", "paddingAll": "20px", "alignItems": "center",
+                "background": { "type": "linearGradient", "angle": "135deg", "startColor": config.v2BgStart, "endColor": config.v2BgEnd },
+                "contents": [
+                    { "type": "box", "layout": "vertical", "width": "80px", "height": "80px", "cornerRadius": "80px", "contents": [{ "type": "image", "url": config.v2LogoUrl || SVG_AVATAR, "size": "full", "aspectMode": "cover" }] },
+                    { "type": "text", "text": config.title, "weight": "bold", "size": "xl", "color": "#FFFFFF", "margin": "md" },
+                    { "type": "text", "text": config.desc, "size": "xs", "color": "#FFFFFF", "opacity": "0.7", "margin": "xs", "wrap": true }
+                ]
+            };
+            flex.footer = { "type": "box", "layout": "vertical", "spacing": "sm", "paddingAll": "10px", "contents": config.v2Bars.map(b => ({ "type": "button", "style": "primary", "color": "#FFFFFF", "height": "sm", "action": { "type": "uri", "label": b.text, "uri": b.url } })) };
+        } else {
+            flex.hero = { "type": "image", "url": config.imgUrl || SVG_COVER, "size": "full", "aspectRatio": "20:13", "aspectMode": "cover", "action": { "type": "uri", "uri": config.imgActionUrl } };
+            flex.body = { "type": "box", "layout": "vertical", "paddingAll": "15px", "contents": [{ "type": "text", "text": config.title, "weight": "bold", "size": "xl", "align": "center" }, { "type": "text", "text": config.desc, "size": "sm", "margin": "md", "color": "#666666", "wrap": true, "align": "center" }] };
+            flex.footer = { "type": "box", "layout": "vertical", "spacing": "sm", "paddingAll": "10px", "contents": config.buttons.map(b => ({ "type": "button", "style": "primary", "color": b.c, "height": "sm", "action": { "type": "uri", "label": b.l, "uri": b.u } })) };
+        }
+
+        if(liff.isApiAvailable('shareTargetPicker')) {
+            await liff.shareTargetPicker([{ type: 'flex', altText: config.altText, contents: flex }]);
+            showToast("🚀 名片已發送");
+            setTimeout(() => liff.closeWindow(), 1000);
+        } else {
+            alert("當前環境不支援轉發，請在 LINE 內開啟");
+        }
+    };
+
+    // ==========================================
+    // 4. OCR 辨識與圖片處理
+    // ==========================================
+    window.openCamera = () => document.getElementById('cameraInput').click();
+    window.openGallery = () => document.getElementById('galleryInput').click();
+    
+    window.handleCameraInput = (e) => { if(e.target.files[0]) window.openCropper(e.target.files[0], (b64) => { 
+        document.getElementById('previewImage').src = b64; 
+        document.getElementById('listView').classList.add('hidden'); 
+        document.getElementById('processView').classList.remove('hidden'); 
+        window.startOcr(b64);
+    }); };
+
+    window.handleGalleryInput = (e) => { if(e.target.files[0]) window.openCropper(e.target.files[0], (b64) => { 
+        document.getElementById('previewImage').src = b64; 
+        document.getElementById('listView').classList.add('hidden'); 
+        document.getElementById('processView').classList.remove('hidden'); 
+        window.startOcr(b64);
+    }); };
+
+    window.handleEcardImageInput = (e) => { if(e.target.files[0]) window.openCropper(e.target.files[0], (b64) => { document.getElementById('ecard_ImgUrl').value = b64; window.updatePreview(); }); };
+    window.handleEcardLogoInput = (e) => { if(e.target.files[0]) window.openCropper(e.target.files[0], (b64) => { document.getElementById('ecard_V2LogoUrl').value = b64; window.updatePreview(); }); };
+
+    window.startOcr = async (b64) => {
+        showToast("🔍 AI 辨識中...");
+        try {
+            const data = await window.callAPI('recognizeCard', { base64Image: b64 });
+            document.getElementById('f_Name').value = data.Name || '';
+            document.getElementById('f_CompanyName').value = data.CompanyName || '';
+            document.getElementById('f_Mobile').value = window.formatPhone(data.Mobile);
+            document.getElementById('f_Title').value = data.Title || '';
+            document.getElementById('f_Slogan').value = data.Slogan || '';
+            showToast("辨識完成");
+        } catch(e) { showToast("辨識失敗，請手動輸入", true); }
+    };
+
+    window.saveCard = async () => {
+        if(isProcessing) return;
+        isProcessing = true;
+        const btn = document.getElementById('saveCardBtn');
+        const ori = btn.innerText; btn.innerText = "寫入雲端中...";
+        try {
+            const imgUrl = await window.callAPI('uploadImage', { base64Image: document.getElementById('previewImage').src });
+            await window.callAPI('saveCard', { 
+                base64Image: imgUrl, 
+                Name: document.getElementById('f_Name').value, 
+                CompanyName: document.getElementById('f_CompanyName').value, 
+                Mobile: document.getElementById('f_Mobile').value, 
+                Title: document.getElementById('f_Title').value, 
+                Slogan: document.getElementById('f_Slogan').value,
+                userId: currentUser.userId
+            });
+            showToast("🎉 名片建立成功");
+            window.closeProcessView();
+            await window.loadCards();
+        } catch(e) {
+            showToast("建立失敗", true);
+        } finally {
+            btn.innerText = ori;
+            isProcessing = false;
+        }
+    };
+
+    window.openCropper = (file, cb) => {
+        const reader = new FileReader();
+        reader.onload = e => {
+            const img = document.getElementById('cropImage');
+            img.onload = () => {
+                document.getElementById('cropModal').classList.remove('hidden');
+                if(cropper) cropper.destroy();
+                cropper = new Cropper(img, { aspectRatio: NaN, viewMode: 1 });
+                currentCropCallback = cb;
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    };
+
+    window.confirmCrop = () => {
+        if(cropper){
+            const b64 = cropper.getCroppedCanvas({ maxWidth: 1000 }).toDataURL('image/jpeg', 0.8);
+            document.getElementById('cropModal').classList.add('hidden');
+            if(currentCropCallback) currentCropCallback(b64);
+        }
+    };
+    window.cancelCrop = () => document.getElementById('cropModal').classList.add('hidden');
+    window.closeProcessView = () => { document.getElementById('processView').classList.add('hidden'); document.getElementById('listView').classList.remove('hidden'); };
+
+    // --- VOOM 與其他功能 ---
+    window.openVoomModal = () => { document.getElementById('voomUrl').value=''; document.getElementById('voomResult').classList.add('hidden'); document.getElementById('voomModal').classList.remove('hidden'); };
+    window.closeVoomModal = () => document.getElementById('voomModal').classList.add('hidden');
+    window.fetchVoomData = async () => {
+        const url = document.getElementById('voomUrl').value;
+        if(!url) return showToast("請輸入連結", true);
+        const btn = document.getElementById('fetchVoomBtn');
+        btn.innerText = "解析中...";
+        try {
+            const data = await window.callAPI('getLineVoomMedia', { url });
+            document.getElementById('voomPlayer').src = data.video.videoUrl;
+            document.getElementById('applyVoomBtn').dataset.videoUrl = data.video.videoUrl;
+            document.getElementById('applyVoomBtn').dataset.thumbUrl = data.video.thumbnailUrl;
+            document.getElementById('voomResult').classList.remove('hidden');
+        } catch(e) { showToast("解析失敗", true); }
+        finally { btn.innerText = "開始解析影音網址"; }
+    };
+    window.applyVoom = () => {
+        const b = document.getElementById('applyVoomBtn');
+        document.getElementById('ecard_VideoUrl').value = b.dataset.videoUrl;
+        document.getElementById('ecard_ImgUrl').value = b.dataset.thumbUrl;
+        window.closeVoomModal();
+        window.updatePreview();
+    };
+
+    window.batchRegenerate = async () => {
+        if(!confirm("這將自動掃描所有名片並嘗試補齊撥號按鈕，確定？")) return;
+        const btn = document.getElementById('batchRegenBtn');
+        btn.innerText = "處理中...";
+        let count = 0;
+        for(let c of allCards){
+            let config = {};
+            if(c['自訂名片設定']) try{ config = JSON.parse(c['自訂名片設定']); }catch(e){}
+            if(!config.buttons || config.buttons.length === 0){
+                let btns = [];
+                if(c['手機號碼']) btns.push({l:'撥打電話', u:`tel:${window.formatPhone(c['手機號碼'])}`, c:'#06C755'});
+                if(c['電子郵件']) btns.push({l:'發送信箱', u:`mailto:${c['電子郵件']}`, c:'#06C755'});
+                config.buttons = btns;
+                await window.callAPI('updateECardConfig', { rowId: c.rowId, config });
+                count++;
+            }
+        }
+        showToast(`已修復 ${count} 張名片`);
+        window.loadCards();
+        btn.innerText = "🔄 批次修復名片按鈕邏輯";
+    };
+
+    window.shareClaimLink = async () => {
+        const url = `https://liff.line.me/2009367829-DLtYBDUm?view=user-profile&claimCardId=${currentCard.rowId}`;
+        const flex = {
+            "type": "bubble", "size": "mega",
+            "body": {
+                "type": "box", "layout": "vertical", "paddingAll": "20px",
+                "contents": [
+                    { "type": "text", "text": "專屬名片認領", "weight": "bold", "color": "#2563eb", "size": "sm" },
+                    { "type": "text", "text": `您好，${currentCard['姓名']}！`, "weight": "bold", "size": "xl", "margin": "md" },
+                    { "type": "text", "text": "我已為您建立了數位名片。點擊下方按鈕即可認領並自由編輯您的個人資訊！", "size": "sm", "color": "#64748b", "wrap": true, "margin": "md" }
+                ]
+            },
+            "footer": {
+                "type": "box", "layout": "vertical", "contents": [{ "type": "button", "style": "primary", "color": "#2563eb", "action": { "type": "uri", "label": "認領我的名片", "uri": url } }]
+            }
+        };
+        await liff.shareTargetPicker([{ type: 'flex', altText: "認領邀請", contents: flex }]);
+    };
+
+    document.addEventListener('DOMContentLoaded', initLIFF);
+</script>
+</body>
+</html>
